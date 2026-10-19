@@ -18,6 +18,9 @@
 - [x] Step 5 REPORT — done (reports/camera-feature-trace.md, evidence/tvpaint-camera-bundle.json: 35 records)
 - [x] Step 6 BUILD — SPEC.md + build/my-version (src/curve.js, src/cameraTrack.js, src/index.js, demo/, 12 tests passing: npm test in build/my-version; demo: open demo/index.html)
 
-next step: 7-publish (needs GitHub CLI for the private remote)
+next step: none — step 7 done
+
+## Step 7 note
+Private repo: https://github.com/Riju2007123/tvpaint-camera-private-source (created via GitHub API with the stored credential manager token; pushed with plain git push).
 
 next step: 2
