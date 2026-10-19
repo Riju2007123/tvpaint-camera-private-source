@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>my-version — TVPaint-style animation app</title>
 <meta name="color-scheme" content="dark">
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="styles.css">
 </head><body>
 <div id="app">
@@ -32,9 +33,14 @@
         <button data-cmd="play">Play / Stop <span class="sc">Enter?</span></button>
         <button data-cmd="prevframe">Previous frame <span class="sc">Left</span></button>
         <button data-cmd="nextframe">Next frame <span class="sc">Right</span></button>
+        <button data-cmd="previnste">Previous instance <span class="sc">Ctrl Left</span></button>
+        <button data-cmd="nextinste">Next instance <span class="sc">Ctrl Right</span></button>
         <button data-cmd="prevkey">Previous key <span class="sc">Page Up</span></button>
         <button data-cmd="nextkey">Next key <span class="sc">Page Down</span></button>
         <hr><button data-cmd="addexp">Add exposure here</button>
+        <button data-cmd="breakexp">Break instance at playhead</button>
+        <button data-cmd="newkey">New instance (key) at playhead</button>
+        <button data-cmd="clearexp">Clear image at playhead</button>
       </div></div>
     <div class="menu"><button data-menu="view">View</button>
       <div class="dropdown">
@@ -142,7 +148,32 @@
             <button data-cmd="layeradd">+</button>
             <button data-cmd="layerdel">−</button>
             <button data-cmd="layervis">👁</button>
-            <button data-cmd="layerexp">Exposure</button>
+            <button data-cmd="addexp">Exposure</button>
+          </div>
+          <div class="lsettings">
+            <div class="row"><label>Opacity</label>
+              <input id="layop" type="range" min="0" max="100" value="100"><span class="val" id="layopv">100</span></div>
+            <div class="row"><label>Blend</label>
+              <select id="layblend">
+                <option value="normal">normal</option><option value="multiply">multiply</option>
+                <option value="screen">screen</option><option value="add">add</option>
+                <option value="overlay">overlay</option><option value="darken">darken</option>
+                <option value="lighten">lighten</option><option value="difference">difference</option>
+              </select></div>
+            <div class="row"><label>Before</label>
+              <select id="laypre">
+                <option value="none">none</option><option value="repeat">repeat</option>
+                <option value="pingpong">pingpong</option><option value="hold" selected>hold</option>
+              </select>
+              <label>After</label>
+              <select id="laypost">
+                <option value="none">none</option><option value="repeat">repeat</option>
+                <option value="pingpong">pingpong</option><option value="hold" selected>hold</option>
+              </select></div>
+            <div class="row checks">
+              <label><input id="layautocreate" type="checkbox" checked> Auto create</label>
+              <label><input id="layautobreak" type="checkbox" checked> Auto break</label>
+            </div>
           </div>
         </div>
       </div>
@@ -161,10 +192,16 @@
       <button data-cmd="lastframe" title="Last frame (End)">⏭</button>
       <span id="fnum">1</span>
       <span class="sep" style="width:1px;height:18px;background:var(--border)"></span>
+      <button data-cmd="previnste" title="Previous instance (Ctrl Left)">◀◆</button>
+      <button data-cmd="nextinste" title="Next instance (Ctrl Right)">◆▶</button>
+      <button data-cmd="addexp" title="Add exposure frames">+ Exposure</button>
+      <button data-cmd="breakexp" title="Split the held image at the playhead">Break</button>
+      <button data-cmd="newkey" title="Create a new image instance at the playhead">+ Instance</button>
+      <button data-cmd="clearexp" title="Remove the image at the playhead">Clear</button>
+      <span id="keyinfo" style="color:#cbb87a;font-family:Consolas,monospace;font-size:11px;white-space:nowrap">—</span>
+      <span class="sp"></span>
       <label style="color:#9a9aa2">fps</label>
       <select id="fps"><option>12</option><option selected>24</option><option>25</option><option>30</option></select>
-      <button data-cmd="addexp">+ Exposure</button>
-      <span class="sp"></span>
       <span id="tlinfo" style="color:#8c8c94">—</span>
     </div>
     <div id="tlbody">

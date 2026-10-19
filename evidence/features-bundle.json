@@ -60,6 +60,120 @@
       "evidence": ["geometry of FUN_1401da730", "FUN_1403f1970 path settings"]
     }
   ],
+  "timelineInstances": [
+    {
+      "id": "exposure-commands",
+      "status": "CONFIRMED",
+      "claim": "tv_exposureinfo/break/add/set/next/prev/fauxfixe are real script commands. Their name strings live at 0x140a62268..0x140a622d0 and the name/handler pairs are 16 bytes apart starting at 0x140a5ff60: info->0x14040ddc0, break->0x14040dc50, add->0x14040dbe0, set->0x14040df60, next->0x14040dec0, prev->0x14040df10, fauxfixe->0x14040dcc0.",
+      "evidence": ["0x140a62268..0x140a622d0", "0x140a5ff60 (table, stride 0x10)", "handlers as listed"]
+    },
+    {
+      "id": "exposure-model",
+      "status": "CONFIRMED",
+      "claim": "A layer's timeline is image INSTANCES with exposure counts, not start/end strips. tv_exposureinfo prints 'Exposure %d %d' with the value from FUN_14078de00 and a constant 0, or an empty string when FUN_14078dfd0 says the frame has no image. FUN_14078dfd0/FUN_14078de00 dispatch on layer type (layer+0x2c = 1/2/4/5/8) and FUN_1404a7e40(container, frame - layerStart) resolves the value, so held frames share the image.",
+      "evidence": ["FUN_14040ddc0", "FUN_14078de00", "FUN_14078dfd0", "FUN_1404a7e40", "format string via FUN_1406fa650"]
+    },
+    {
+      "id": "exposure-setter",
+      "status": "CONFIRMED",
+      "claim": "tv_exposureset calls FUN_1407b3100(frame, n): frame -999999 means the current scene frame (scene+0x48); the frame is range-checked against FUN_14078ce20/FUN_14078e200 (layer first/last frame); a flag at layer+0x20 bit4 short-circuits; n is clamped to >= 1; for image layers the instance containing the frame is grown (insert instances) or shrunk (remove instances), which is exactly what our runs model does.",
+      "evidence": ["FUN_14040df60", "FUN_1407b3100", "FUN_14078ce20", "FUN_14078e200"]
+    },
+    {
+      "id": "exposure-break",
+      "status": "CONFIRMED",
+      "claim": "tv_exposurebreak calls FUN_14068f700, which allocates an undo command object of RTTI class cMUDBreakInstances (.?AVcMUDBreakInstances@@ at 0x140cddbd0) holding the layer and the frame, then FUN_14078aa30. So 'break' is a first-class undoable instance split, not a strip edit.",
+      "evidence": ["FUN_14040dc50", "FUN_14068f700", "0x140cddbd0 (RTTI)", "FUN_14078aa30"]
+    },
+    {
+      "id": "layer-behaviour",
+      "status": "CONFIRMED",
+      "claim": "tv_layerprebehavior / tv_layerpostbehavior read layer+0x6c and layer+0x70; mode values map to strings (0 -> none string referenced at DAT_140a5c96c, 1 -> 'repeat', 2 -> 'pingpong', 3 -> 'hold'). Setters go through FUN_1400d5750 / FUN_1400d54f0. These are the before/after-layer range rules our sampler implements.",
+      "evidence": ["FUN_140412ce0 (pre)", "FUN_140412a80 (post)", "strings 'repeat'/'pingpong' in both handlers"]
+    },
+    {
+      "id": "auto-instance-flags",
+      "status": "CONFIRMED",
+      "claim": "Per-layer animation flags are: auto break instance = type2 sub-object +0x28 and type5 sub-object +0xb0 (getter FUN_14078a070, setter FUN_1407a31b0, folder layers recurse via FUN_1407932d0(...,1)); auto create instance = type2 +0x29 and type5 +0xb1 (getter FUN_14078a110, folder via FUN_1407932d0(...,2)). Commands tv_layerautobreakinstance / tv_layerautocreateinstance expose them and accept on/off/toggle.",
+      "evidence": ["FUN_14040e620", "FUN_14078a070", "FUN_14078a110", "FUN_1407a31b0"]
+    },
+    {
+      "id": "hold-is-not-exposure-hold",
+      "status": "CONFIRMED",
+      "claim": "Correction to an easy mistake: tv_layerhold is NOT an exposure-hold command. Its handler FUN_14040d630 builds a 'Hold&Fetch' selection tool buffer (FUN_140253920). Exposure holding is done with tv_exposureset/add.",
+      "evidence": ["FUN_14040d630", "FUN_140253920"]
+    },
+    {
+      "id": "layer-timeline-commands",
+      "status": "CONFIRMED",
+      "claim": "The tv_layer command table sits at 0x140a5fc20 (16-byte name/handler pairs). Handlers relevant to the timeline/canvas: tv_layerdensity 0x140410e90, tv_layerdisplay 0x140410f40, tv_layerrecomputeexposure 0x140412f40, tv_layerinsertimage 0x1404118f0, tv_layerimage 0x14040bc80, tv_layergetimage 0x14040bc40, tv_layerblendingmode 0x14040f310, tv_layerautobreakinstance 0x14040e620, tv_layerautocreateinstance 0x14040e870, tv_layerprebehavior 0x140412ce0, tv_layerpostbehavior 0x140412a80, tv_layerhold 0x14040d630.",
+      "evidence": ["read_bytes 0x140a5fc20 length 0x330 (name/handler pairs parsed)"]
+    },
+    {
+      "id": "recompute-exposure",
+      "status": "CONFIRMED",
+      "claim": "tv_layerrecomputeexposure (handler 0x140412f40) takes 4 arguments and either calls FUN_1400dd1a0(layer, start) or FUN_1400dcf50(layer, start, count, value) to re-space exposures over a range. The exact re-spacing curve was not decoded (we do not implement recompute).",
+      "evidence": ["FUN_140412f40", "FUN_1400dd1a0", "FUN_1400dcf50"]
+    },
+    {
+      "id": "exposure-image-copy",
+      "status": "INFERRED",
+      "claim": "The body of cMUDBreakInstances (its vftable) was not read, so we clone the held image into the new key (seed + recorded strokes) — which is the behaviour the UI needs and matches the visible result. Exact pointer re-use vs deep copy in the original is UNKNOWN.",
+      "evidence": ["RTTI 0x140cddbd0 (class only)"]
+    }
+  ],
+  "keyframes": [
+    {
+      "id": "key-navigation-actions",
+      "status": "CONFIRMED",
+      "claim": "The captured keymap distinguishes two navigations: Ctrl Left = PrevInstance and Ctrl Right = NextInstance (adjacent image instance), while Page Up = LayerPrevKey and Page Down = LayerNextKey (exposure boundary of the current layer). Our app implements both on those exact chords.",
+      "evidence": ["captured Fauxtoshop.cfg lines", "ACTION_ALIASES PrevInstance/NextInstance/LayerPrevKey/LayerNextKey"]
+    },
+    {
+      "id": "key-definition",
+      "status": "INFERRED",
+      "claim": "A key is the first frame of an image instance (offset 0 within a run) and a held exposure frame is not a key; boundaries are instance starts and end+1, because that is what the exposure setter splits on. Derived from the confirmed exposure model.",
+      "evidence": ["FUN_1407b3100 split points", "FUN_14078dfd0 has-image"]
+    },
+    {
+      "id": "direct-manipulation",
+      "status": "INFERRED",
+      "claim": "Drawing on a held frame splits the instance when auto-break is on and drawing on an empty frame creates one when auto-create is on; the flags are confirmed, the wiring of the flags into the paint path was not traced frame-by-frame.",
+      "evidence": ["FUN_14078a070 / FUN_14078a110 flags", "app behaviour in demo/app.js ensureDrawable"]
+    }
+  ],
+  "canvas": [
+    {
+      "id": "layer-density",
+      "status": "CONFIRMED",
+      "claim": "tv_layerdensity (handler 0x140410e90) reads the layer opacity as a 0..1 double (FUN_1400daaf0) and sets it from the command value / 100 (FUN_1400e3f70); the old value is returned as an integer percent. Our layer opacity uses the same 0..1 range.",
+      "evidence": ["FUN_140410e90", "FUN_1400daaf0", "FUN_1400e3f70"]
+    },
+    {
+      "id": "layer-blend-mode",
+      "status": "CONFIRMED",
+      "claim": "tv_layerblendingmode (handler 0x14040f310) exists and sets a per-layer blend mode; FUN_1407374b0 aliases mode 0xD to 0xC, and the mode NAME list is a runtime string array (DAT_140cc0f10) that gets a 'Transparent' entry for folder layers (FUN_140737670). config.ini ships 'blendingmode=Multiply' plus blendbackground/blendmask keys, so Multiply is a real mode value in this install.",
+      "evidence": ["FUN_14040f310", "FUN_1407374b0", "FUN_140737670", "config.ini blendingmode=Multiply, blendbackground=1, blendmask=0"]
+    },
+    {
+      "id": "blend-mode-list",
+      "status": "UNKNOWN",
+      "claim": "The exact number, order and integer ids of all blend modes were not recovered (the list is built at runtime). Our select offers normal/multiply/screen/add/overlay/darken/lighten/difference and maps them to Canvas2D composite operations; Multiply is the mode value confirmed from config.ini.",
+      "evidence": ["runtime arrays DAT_140cc0f08/DAT_140cc0f10 (contents not read)"]
+    },
+    {
+      "id": "brush-engine",
+      "status": "INFERRED",
+      "claim": "The paint engine internals are proprietary and were not decoded. Our brush stamps radial-gradient dabs along the stroke with pressure-driven width and alpha, spacing = 12% of the dab width, plus a replayable stroke list per image for undo. Layers composite with opacity + blend, and each instance owns its own canvas image.",
+      "evidence": ["implementation src/timeline.js + demo/app.js", "pressure evidence in penPressure section"]
+    },
+    {
+      "id": "canvas-image-commands",
+      "status": "CONFIRMED",
+      "claim": "Image-level script commands exist: tv_layerinsertimage 0x1404118f0, tv_layerimage 0x14040bc80, tv_layergetimage 0x14040bc40 (handlers from the tv_layer table). They are the binary's own way to reach the per-layer image, which supports the per-instance canvas model.",
+      "evidence": ["0x140a5fc20 table parse", "handlers as listed"]
+    }
+  ],
   "penPressure": [
     {
       "id": "pressure-strings",
@@ -144,14 +258,20 @@
     {
       "id": "tests",
       "status": "CONFIRMED",
-      "claim": "npm test runs 32 Node tests covering camera v2, shortcuts parsing/serialisation/conflicts, timeline model and pressure-to-width; all pass.",
-      "evidence": ["build/my-version/tests/*.test.js"]
+      "claim": "npm test runs 38 Node tests covering camera v2, shortcuts parsing/serialisation/conflicts, the instance/exposure timeline model (set/add/break, auto create/break, instance-vs-key navigation, pre/post behaviours, empty exposures), and pressure-to-width; all pass.",
+      "evidence": ["build/my-version/tests/*.test.js", "node --test output: 38 pass / 0 fail"]
     },
     {
       "id": "browser-check",
       "status": "CONFIRMED",
-      "claim": "In the shipped demo, 283 keymap bindings load; a pen stroke can be drawn and undone/redone via Ctrl Z / Shift U; E/B switch tools; Right and Page Down navigate frames; F6 toggles the palette; Ctrl K opens the dialog; camera actions add keys/path points; infoFrame reports the confirmed 6-float order; no console errors.",
-      "evidence": ["browser probe output", "screenshots: draw view, camera view, shortcuts dialog"]
+      "claim": "An automated Chrome DevTools Protocol check (tools/verify-ui.mjs, no extra dependencies) drives the shipped demo like a user: it paints strokes with real mouse events, verifies auto-break split a 60f exposure into 19+41 at frame 20 with the new key cloned from the held image, undoes with Ctrl Z, exercises + Exposure / + Instance / Clear plus undo, checks Ctrl Right vs Page Down navigation, per-key canvas identity, Ctrl K (283 captured bindings) and Escape, and the camera view. 24/24 checks pass with zero console/page errors; screenshots in evidence/ui/.",
+      "evidence": ["build/my-version/tools/verify-ui.mjs", "evidence/ui/01-draw-key1.png", "evidence/ui/02-draw-key2.png", "evidence/ui/03-camera-view.png"]
+    },
+    {
+      "id": "rea-availability",
+      "status": "CONFIRMED",
+      "claim": "The REA MCP server was connected for the tracing calls recorded above and then disconnected from the session mid-step (the Code Mode catalog dropped the rea tools). Remaining REA work (cMUDBreakInstances vftable body, exact blend-mode enum table, brush-engine dab maths) is listed as UNKNOWN and needs a reconnected REA session.",
+      "evidence": ["REA tool calls earlier in the session", "catalog change observed after the trace"]
     }
   ]
 }

@@ -115,9 +115,20 @@ input:focus{border-color:var(--found)}
 .tlrow{position:relative;height:22px;border-bottom:1px solid var(--border)}
 .tlrow:nth-child(odd){background:rgba(255,255,255,.015)}
 .tlrow.cam{height:22px}
-.exp{position:absolute;top:2px;height:18px;background:var(--layer1);border:1px solid var(--border);border-radius:2px}
-.exp.cur{background:var(--layer-grab)}
+.exp{position:absolute;top:2px;height:18px;background:var(--layer1);border:1px solid var(--border);border-radius:2px;overflow:hidden}
+.exp.img{background:linear-gradient(rgb(96,96,104),rgb(78,78,86));border-color:rgb(52,52,58)}
+.exp.key{background:linear-gradient(rgb(126,126,136),rgb(96,96,105));border-color:var(--layer-grab)}
+.exp .k{position:absolute;left:1px;top:5px;width:6px;height:6px;background:var(--playhead);transform:rotate(45deg)}
+.exp .ec{position:absolute;right:2px;top:1px;font:9px Consolas,monospace;color:#ddd;opacity:.75}
+.exp.cur{outline:2px solid var(--found);outline-offset:-2px}
 .exp:hover{border-color:var(--found)}
+.exp.cur.key{background:var(--layer-grab)}
+.lsettings{border-top:1px solid var(--border);padding-top:4px;margin-top:4px}
+.lsettings .row.checks label{width:auto;display:flex;align-items:center;gap:3px;color:#9a9aa2}
+.lsettings select{flex:1;min-width:0}
+#tlbar{gap:4px}
+#tlbar button{padding:2px 5px;font-size:11px}
+#keyinfo{overflow:hidden;text-overflow:ellipsis;max-width:210px}
 #ruler{position:relative;height:18px;background:var(--field);border-bottom:1px solid var(--border)}
 #ruler .tick{position:absolute;top:0;width:1px;height:6px;background:#777}
 #ruler .lab{position:absolute;top:5px;font-size:9px;color:#999;font-family:Consolas,monospace;transform:translateX(2px)}

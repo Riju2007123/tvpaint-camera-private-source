@@ -5,13 +5,18 @@ REA (reverse-engineering) evidence — **no copied code and no copied assets**:
 
 1. **Camera** — exact per-property key semantics (size / rotation / zoom / path), the traced
    ease-curve blend, the TL/TR/BR/BL corner builder and the `infoFrame` 6-float order.
-2. **Canvas** — layer compositing on a white paper, brush + eraser, colour picker, pan/zoom,
-   undo/redo (stroke history, not screenshots), PNG-style browser rendering.
-3. **Pen pressure** — browser Pointer Events pressure drives brush width through the traced
-   pressure curve; a live pressure meter is shown in the options bar.
-4. **Timeline** — per-layer exposure strips, camera-key row, audio master row, notes row,
-   a yellow playhead, scrub/step/play at 12/24/25/30 fps.
-5. **Shortcuts** — the **exact captured keymap** (293 lines, `[Keyboard]` / `Combo=Action`
+2. **Canvas** — one canvas **image per animation instance** (key), painted with pressure dabs;
+   layer opacity + blend compositing on white paper; brush + eraser, colour picker, pan/zoom,
+   undo/redo (replayable stroke history, not screenshots).
+3. **Pen pressure** — browser Pointer Events pressure drives brush width and dab alpha through the
+   traced pressure curve; a live pressure meter is shown in the options bar.
+4. **Timeline** — the traced **instance/exposure model**: image instances with exposure counts and
+   empty exposures, before/after behaviour (none/repeat/pingpong/hold), auto create/auto break
+   instance, camera-key row, audio master row, notes row, a yellow playhead, scrub/step/play.
+5. **Keyframes** — every instance start is a key; `Ctrl ←/→` = previous/next instance,
+   `Page Up/Down` = previous/next exposure boundary of the layer; drawing on a held frame splits it,
+   drawing on an empty frame creates an instance.
+6. **Shortcuts** — the **exact captured keymap** (293 lines, `[Keyboard]` / `Combo=Action`
    format from TVPaint's own `Fauxtoshop.cfg`), a live key dispatcher, and a
    Configure-Keyboard dialog with search, rebind and export in the same file format.
 
@@ -36,20 +41,30 @@ node tools/serve.js          # http://127.0.0.1:8124/
 
 ```bash
 cd build/my-version
-npm test                     # node --test: camera, shortcuts, timeline, pressure
+npm test                     # node --test: camera, shortcuts, timeline, pressure (38 tests)
+```
+
+**Automated UI check** (drives the real page in headless Chrome via the DevTools Protocol,
+no extra npm dependencies; needs Chrome installed):
+
+```bash
+cd build/my-version
+node tools/serve.js &        # the check expects the dev server on :8124
+node tools/verify-ui.mjs     # 24 checks: painting, auto-break, undo, keys, camera, shortcuts
 ```
 
 ## What the app can do
 
 | Area | Working behaviour |
 | --- | --- |
-| Draw | Brush (B) / eraser (E) / picker (I) / pan (V) / zoom (Space); pressure-sensitive width; size, smoothing, opacity; colour palette |
-| Layers | Add, delete, select, show/hide; each layer has its own canvas + timeline exposure |
-| Undo / redo | `Ctrl Z` / `Shift U` (the captured TVPaint binding), stroke-granular |
-| Timeline | Scrub by clicking, step (`Left`/`Right`), jump key (`Page Up`/`Page Down`), first/last (`Home`/`End`), play/stop, fps selector, add exposure |
+| Draw | Brush (B) / eraser (E) / picker (I) / pan (V) / zoom (Space); pressure-sensitive width **and** dabs; size, smoothing, opacity; colour palette |
+| Layers | Add, delete, select, show/hide; per-layer **opacity** (traced density 0..1), **blend mode**, **before/after behaviour**, **auto create / auto break instance** |
+| Undo / redo | `Ctrl Z` / `Shift U` (the captured TVPaint binding), stroke-granular and per-image |
+| Timeline | Instance blocks with exposure counts and key diamonds; `+ Exposure`, `Break`, `+ Instance`, `Clear`; scrub by clicking a block or ruler, step (`Left`/`Right`), instance nav (`Ctrl Left/Right`), key nav (`Page Up/Down`), first/last (`Home`/`End`), play/stop, fps selector |
+| Keyframes | Every instance start is a key; drawing on a held frame auto-breaks it into a new key (cloned from the held image); drawing on an empty frame auto-creates one; the readout shows `key i/n · exposure · frames a–b` |
 | Camera | Add size / rotation / zoom keys and path points at the playhead; delete keys; camera preview mode renders the **exact camera output** (letterboxed, clipped, corner labels); keys ease with the traced 1001-sample curve logic |
 | Shortcuts | `Ctrl K` opens the shortcut settings; search, click-to-rebind, reset to the captured default, export `Fauxtoshop.cfg`; every implemented action fires from the keyboard (undo/redo, tools, layers, frames, keys, panels, size, zoom, fullscreen, save) |
-| Project | File ▸ Save project writes a JSON with strokes + exposures + camera track |
+| Project | File ▸ Save project writes a JSON with instances + exposures + strokes + camera track |
 
 ## Structure
 
@@ -63,18 +78,23 @@ npm test                     # node --test: camera, shortcuts, timeline, pressur
   conflict detection, search.
 - `src/defaultKeymap.js` — the captured 293-line keymap as data (generated by
   `tools/genDefaultKeymap.js` from `keymaps/Fauxtoshop.cfg`).
-- `src/timeline.js` — timeline model: layers, exposures, camera row, audio tracks, notes.
+- `src/timeline.js` — the traced timeline model: `Layer` = ordered **runs** (`image` instances with an
+  exposure `count`, or `empty` exposures), `setExposure` / `addExposure` / `breakInstance` / `newInstance`
+  / `clearImage` / `ensureDrawable` (auto create + auto break), `prev/next Instance`, `prev/next Key`,
+  and the four before/after behaviours; plus `Timeline` with audio track + notes for the widget.
 - `src/pressureInk.js` — pressure → width ink model.
 - `demo/` — the full app shell (`index.html`, `styles.css`, `app.js`); `tools/serve.js` is a
-  dev-only static server with correct MIME types.
-- `tests/` — 32 Node tests over the traced behaviour.
+  dev-only static server with correct MIME types; `tools/verify-ui.mjs` is the CDP UI check.
+- `tests/` — 38 Node tests over the traced behaviour.
+- `evidence/ui/` — screenshots produced by `tools/verify-ui.mjs`.
 
 ## Provenance
 
-- Trace report: `../../reports/camera-feature-trace.md` (camera v1 + v2 addendum).
+- Trace reports: `../../reports/camera-feature-trace.md` (camera v1 + v2 addendum) and
+  `../../reports/timeline-keyframe-canvas-trace.md` (v3: instance/exposure model, keyframes, canvas).
 - Evidence: `../../evidence/tvpaint-camera-bundle.json` (REA/Ghidra export) and
-  `../../evidence/features-bundle.json` (distilled ledger for canvas, pressure, timeline,
-  shortcuts, UI theme, camera v2).
+  `../../evidence/features-bundle.json` (distilled ledger: camera v2, timeline instances, keyframes,
+  canvas, pressure, shortcuts, UI theme, verification).
 - Target SHA-256: `c998c6fe9d14e0a4d23726f2b667f1406f72631de2ab20aa52c34a3c97432c2a`.
 
 ## Status: CONFIRMED vs INFERRED vs UNKNOWN
@@ -82,23 +102,41 @@ npm test                     # node --test: camera, shortcuts, timeline, pressur
 **CONFIRMED (traced in the binary / captured from the app)**
 - Camera key record layout, sparse flags, defaults, curve lookup, corner order, `infoFrame`
   value order, printf argument order.
-- Shortcut file format (`[Keyboard]`, `Combo=Action`, `none`) and the 293 captured bindings;
-  shortcut colours in `config.ini`.
+- Timeline **instance/exposure model**: `tv_exposureinfo` prints `Exposure n` (or empty for no image);
+  `FUN_1407b3100` sets an instance's exposure to `max(1, n)` by inserting/removing instances;
+  `tv_exposurebreak` builds the undoable `cMUDBreakInstances` split; layer before/after modes
+  `none/repeat/pingpong/hold` at `+0x6c`/`+0x70`; auto create/auto break instance flags
+  (type2 `+0x29`/`+0x28`, type5 `+0xb1`/`+0xb0`); `tv_layerhold` is the "Hold&Fetch" tool, not an
+  exposure hold.
+- Canvas: layer **opacity/density** is a 0..1 value (`tv_layerdensity`, `value/100`), a per-layer
+  **blend mode** command exists (`tv_layerblendingmode`, `config.ini blendingmode=Multiply`), and
+  per-layer image commands exist (`tv_layerinsertimage` / `tv_layerimage` / `tv_layergetimage`).
+- Keymap: `Ctrl Left/Right = PrevInstance/NextInstance`, `Page Up/Down = LayerPrevKey/LayerNextKey`;
+  the full captured 293-line `Fauxtoshop.cfg`.
+- Shortcut file format and colours in `config.ini`.
 - UI theme colour values (cited per CSS variable), timeline feature strings and RTTI classes
-  (`cTimelineLayer`, `cTimelineLayers`, `cTimelineLayerTimeline`, `cTimelineLayerOptions`,
-  `cTimelineStrip`, `cTimelineAudio*`, `cTimelineNotes`).
+  (`cTimeline*`, `cMUDBreakInstances`).
 - Pen pressure exists and is parsed by a tablet reader (`cMyTabletReader`, `has pressure ?`).
 
 **INFERRED (documented approximations)**
 - Camera path interpolation between points is linear (the traced path evaluator was not fully
-  decoded; `FUN_1401e2690` is 17.9 KB).
-- Zoom is applied at the same composition stage as in our matrix order.
-- Brush rendering model (width = size × curve(pressure)) mirrors the permit/ink contract but
-  the original brush engine's dab spacing is proprietary and not reproduced.
-- Timeline widget pixel layout is our own; the model (layers/exposures/audio/notes) follows
-  the traced class responsibilities.
+  decoded; `FUN_1401e2690` is 17.9 KB); zoom is applied at the same composition stage as our matrix.
+- `cMUDBreakInstances` is implemented as a **deep copy of the image into the new key**; the original
+  pointer-vs-copy behaviour was not read.
+- Brush rendering model (pressure dabs: width = size × curve(pressure), spacing = 12% of dab width,
+  alpha from pressure) — the original dab maths is proprietary and not reproduced.
+- A key is the first frame of an instance and boundaries are instance starts / end+1.
+- Drawing integration with the auto create/break flags (the flags are confirmed; the paint-path wiring
+  was not traced).
+- Blend-mode list (we offer normal/multiply/screen/add/overlay/darken/lighten/difference; only
+  Multiply is confirmed from `config.ini`).
+- Timeline widget pixel layout is our own; the model follows the confirmed command behaviour.
 
 **UNKNOWN / not attempted**
-- Exact brush-engine dab spacing/texel compositing; multi-plane camera compositing;
-  motion blur; audio playback; the original `.dip` icon format (we draw our own SVG icons);
-  shortcut panel's exact pixel layout (ours follows the captured colours).
+- `cMUDBreakInstances` vftable body (deep copy vs share); full blend-mode enum table; exact
+  brush-engine dab maths and wet/oil brushes; `tv_layerrecomputeexposure` re-spacing curve;
+  `tv_layeranim` (handler 0x14040f300 had no loaded source mapping when read); multi-plane camera
+  compositing; motion blur; audio playback; the `.dip` icon format (we draw our own SVG icons);
+  shortcut panel's exact pixel layout.
+- The REA MCP server disconnected from the session after the tracing calls above; these items need a
+  reconnected REA session.

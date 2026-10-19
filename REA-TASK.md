@@ -23,7 +23,56 @@ next step: none — step 7 done
 ## Step 7 note
 Private repo: https://github.com/Riju2007123/tvpaint-camera-private-source (created via GitHub API with the stored credential manager token; pushed with plain git push).
 
-next step: 2
+## New request ([19-10-2026] #3)
+User: "use REA to reverse engeneer the timeline, key frame and canvas of tv paint 12 then add them in our app" (previous UI rebuild + camera v2 rejected as "not good"; timeline/keyframe/canvas must be traced deeper, not approximated).
+
+## Step 4c TRACE — timeline / keyframes / canvas (v3)
+- Exposure command family found and resolved to handlers: tv_exposureinfo 0x14040ddc0, break 0x14040dc50,
+  add 0x14040dbe0, set 0x14040df60, next 0x14040dec0, prev 0x14040df10, fauxfixe 0x14040dcc0
+  (strings 0x140a62268..0x140a622d0; name/handler table at 0x140a5ff60, stride 0x10).
+- CORRECTED MODEL: a layer is a list of image INSTANCES with exposure counts (plus empty exposures),
+  not start/end strips. tv_exposureinfo prints "Exposure %d %d" via FUN_14078de00/FUN_14078dfd0 (layer
+  type dispatch on +0x2c: 1/2/4/5/8) and FUN_1404a7e40(container, frame - layerStart).
+- Setter FUN_1407b3100(frame, n): -999999 = current scene frame (scene+0x48); range check
+  FUN_14078ce20/FUN_14078e200; edit-lock layer+0x20 bit4; n = max(1, n); inserts/removes instances.
+- Break = undoable cMUDBreakInstances object (RTTI 0x140cddbd0) via FUN_14068f700 + FUN_14078aa30.
+- Correction: tv_layerhold (FUN_14040d630) is the "Hold&Fetch" selection tool (FUN_140253920), NOT an
+  exposure hold.
+- Pre/post behaviour: layer +0x6c / +0x70, modes 0 none / 1 repeat / 2 pingpong / 3 hold
+  (FUN_140412ce0 / FUN_140412a80).
+- Auto break instance getter FUN_14078a070 (type2 +0x28, type5 +0xb0; folders FUN_1407932d0(...,1));
+  auto create instance getter FUN_14078a110 (type2 +0x29, type5 +0xb1; folders (...,2)); setter
+  FUN_1407a31b0. Handlers tv_layerautobreakinstance 0x14040e620 / tv_layerautocreateinstance 0x14040e870.
+- tv_layer table at 0x140a5fc20 parsed: density 0x140410e90, display 0x140410f40, recomputeexposure
+  0x140412f40, insertimage 0x1404118f0, image 0x14040bc80, getimage 0x14040bc40, blendingmode 0x14040f310,
+  prebehavior 0x140412ce0, postbehavior 0x140412a80, hold 0x14040d630.
+- Canvas: tv_layerdensity reads opacity 0..1 (FUN_1400daaf0) and sets value/100 (FUN_1400e3f70);
+  tv_layerblendingmode aliases 0xD→0xC (FUN_1407374b0) with a runtime name table (DAT_140cc0f08/10,
+  "Transparent" for folders, FUN_140737670); config.ini has blendingmode=Multiply.
+- Keymap (captured): Ctrl Left/Right = PrevInstance/NextInstance; Page Up/Down = LayerPrevKey/LayerNextKey.
+
+## Step 5c REPORT
+- reports/timeline-keyframe-canvas-trace.md (full trace, CONFIRMED/INFERRED/UNKNOWN, no copied code).
+- evidence/features-bundle.json gained timelineInstances (10), keyframes (3), canvas (5) records + updated verification.
+
+## Step 6c BUILD
+- src/timeline.js rewritten as the instance/exposure model (runs, setExposure/addExposure/breakInstance/
+  newInstance/clearImage/ensureDrawable, prev/next instance, prev/next key, 4 behaviours).
+- demo rebuilt around PER-INSTANCE canvases (Background 1 key, Ball animation 6 keys, Paint 1 key with
+  auto break/create as you draw), layer panel gained opacity/blend/before/after/auto flags, timeline gained
+  + Exposure / Break / + Instance / Clear and instance nav; brush is a pressure dab engine.
+- Tests: 38/38 pass (11 new timeline model tests).
+- NEW tools/verify-ui.mjs: zero-dependency headless-Chrome CDP check, 24/24 pass, screenshots in evidence/ui/.
+- Bug found by that check and fixed: tools/serve.js mapped "/" to /demo/index.html so relative styles.css/app.js 404'd; now redirects to /demo/.
+
+## REA availability note ([19-10-2026])
+The REA MCP server was connected for every tracing call above, then disconnected from the session (the
+Code Mode catalog dropped the rea tools). Remaining items need a reconnected REA session:
+cMUDBreakInstances vftable body, the runtime blend-mode table contents, paint-engine dab maths,
+tv_layerrecomputeexposure re-spacing (FUN_1400dcf50), and tv_layeranim (0x14040f300 had no loaded source
+mapping when read).
+
+next step: 4 (resume REA tracing of the UNKNOWN list, then Step 7 push)
 
 ## New request ([19-10-2026] #2)
 User: bring Camera to EXACT parity, add: (1) canvas, (2) pen pressure, (3) shortcuts + shortcut settings, (4) exact timeline.
