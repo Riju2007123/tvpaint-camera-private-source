@@ -1,0 +1,9 @@
+{
+  "name": "tvpaint-camera-my-version",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Re-implementation of the TVPaint-like keyframed camera from REA-traced behavior (SPEC.md). No copied code.",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\""
+  }
+}
