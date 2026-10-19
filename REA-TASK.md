@@ -14,8 +14,8 @@
 - [x] Step 1 ASK — answers saved
 - [x] Step 2 SETUP — doctor --client opencode healthy; registration:opencode ok; GHIDRA_INSTALL_DIR=C:\ghidra_12.1.4_PUBLIC and JAVA_HOME set (Ghidra provider available)
 - [ ] Step 3 ROUTE
-- [ ] Step 4 TRACE
-- [ ] Step 5 REPORT
+- [x] Step 4 TRACE — done (reports/camera-feature-trace.md)
+- [x] Step 5 REPORT — done (reports/camera-feature-trace.md, evidence/tvpaint-camera-bundle.json: 35 records)
 - [ ] Step 6 BUILD (SPEC.md + build/my-version)
 
 next step: 2
