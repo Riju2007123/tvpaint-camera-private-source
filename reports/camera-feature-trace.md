@@ -54,3 +54,130 @@ TVPaint's camera = a special **keyframed track** in the project. Each key stores
 
 ## Bottom line for goal C
 To make **my own working camera version**, the observed behavior is: a keyframe track with per-property (x, y, rotation, zoom, size) keys; sparse property ranges; per-key 1001-sample ease curves (linear default); evaluation between the previous/next key having that property; defaults x,y = camera size, zoom = 1, rotation = 0; time mapped from scene range onto the camera layer range.
+
+---
+
+# Addendum — request #2: exact camera, canvas, pressure, shortcuts, timeline, app shell
+
+This addendum records the second REA pass (same target, same SHA-256) and the behaviour that
+shipped in `build/my-version`. Distilled evidence: `evidence/features-bundle.json`; raw
+provider export remains `evidence/tvpaint-camera-bundle.json`.
+
+## 1. Camera v2 — why v1 was not exact, and what the trace showed
+
+The first version read key `x`/`y` as a camera **pan** and applied a single "position" span.
+The second pass showed that this is wrong:
+
+1. **Lookup functions (CONFIRMED).** The previous/next property-key searches are
+   `FUN_1401e3870` (previous) and `FUN_1401e3690` (next). Each is called once per property
+   (x, y, rotation, zoom, size), always checking that property's own flag bit. That is the
+   concrete implementation of "sparse keyspans".
+2. **Key record layout v2 (CONFIRMED).** Record stride `0x380`; entry stride `0xE0`:
+   `frame +0x00`, `rotation +0x18`, `zoom +0x20`, **`sizeX +0x28`**, **`sizeY +0x30`**,
+   flags `+0x48` (bit 1 rotation, bit 2 zoom, **bit 3 size**), ease curves at
+   `+0x178` (zoom), `+0x238` (rotation), `+0x2F8` (position). So `x`/`y` are the frame
+   **size** (width/height), not a pan offset. Camera movement lives in a **separate path
+   track**.
+3. **Corner builder (CONFIRMED).** `FUN_1401da730` turns the evaluated state into the four
+   camera corners and returns them in **TL, TR, BR, BL** order. When no path point exists it
+   falls back to the scene/camera centre; when a path exists the path point supplies the
+   centre. Size is the half-extent basis, zoom scales it, rotation rotates the rect.
+4. **Curve rasterizer (CONFIRMED).** `FUN_14081ec20` fills the 1001-entry uint16 table; the
+   table is **x-mirrored** at build time (for an ease curve authored with control points on
+   x, the stored table is sampled from `1−x`). Net effect for the default linear curve is
+   the standard ease, which is why v1's linear default looked correct while non-linear
+   curves would not have.
+5. **Blend (CONFIRMED).** Between keys A and B the value is
+   `c = clamp01(B.curve(1−t)); v = A·(1−c) + B·c` — the **later** key's curve is evaluated
+   with `1−t` (this is the literal assembly/C in the four evaluators).
+6. **`infoFrame` order (CONFIRMED).** The 6 floats are printed in the order
+   **pathX, pathY, rotation, zoom×100, sizeX, sizeY**. The argument setup was read directly
+   at `0x1403f143f..0x1403f1500` (`movsd` loads followed by the six-float format string),
+   resolving v1's UNKNOWN #3.
+
+**Implemented:** `src/cameraTrack.js` v2 (size keys, separate path, corner order, mirrored
+curve table, exact info order), façade in `src/index.js`, and camera preview rendering in
+`demo/app.js` that clips to the camera output rectangle (letterbox) exactly like a camera
+viewer.
+
+**Still INFERRED:** path interpolation between path points is linear (the full path
+evaluator `FUN_1401e2690` is 17.9 KB and was not decoded); the exact compositor matrix stage
+at which zoom is applied is inferred from the corner geometry.
+
+## 2. Pen pressure (CONFIRMED mechanism, INFERRED brush application)
+
+- String `pressure` at `0x140a3d1a8`; literal `"\thas pressure ? %s\n"` at `0x140a70f30`,
+  used by `FUN_14053f9e0`. Globals `0x140ce0d88` / `0x140ce0d94`.
+- RTTI class `.?AUcMyTabletReader@nInk@@` at `0x140cdb4e8` — the tablet reader lives in the
+  ink module. A `_pressure.mot` resource confirms a dedicated pressure mode/motion file.
+- **Implemented:** browser Pointer Events `pressure` (pen only; mouse = full width) drives
+  brush width through the same curve object; live meter in the options bar; toggle to disable.
+
+**UNKNOWN:** the original brush engine's dab spacing, texel compositing and pressure→size
+mapping curve for every brush preset (proprietary; not reconstructed).
+
+## 3. Shortcuts / shortcut settings (CONFIRMED file format + captured data)
+
+- Captured file: `%APPDATA%\TVPaint Animation 12 Pro Demo\default\keymaps\Fauxtoshop.cfg`
+  (293 lines; `[Keyboard]` section; `Combo=Action`; literal `none` bindings).
+- `Export Shortcuts` command string at `0x140a6ab78`; action id
+  `11700020Cycle_keyboardshortcut`.
+- Configure-Keyboard colours from `config.ini` (Night scheme): `mmenushortcut 112 121 157`,
+  `mshortcutkeyfoundresult 129 170 201`, `mshortcutkeyinuse 240 208 146`,
+  `mshortcutkeynormaltext 182 182 182`, `mshortcutkeyselected 62 71 107`.
+- **Implemented:** `src/shortcuts.js` parses/serialises that exact format (mojibake tolerated,
+  special tokens such as `Ctrl Pad N`, `Wheel Up/Down`, `braquet` preserved);
+  `src/defaultKeymap.js` embeds the capture; the app's Configure-Keyboard dialog uses the
+  captured colours, supports search, click-to-rebind, reset and export to `Fauxtoshop.cfg`.
+  A live dispatcher maps the captured bindings to real app actions (undo, redo, tools,
+  layers, frame/key navigation, panels, size, zoom, fullscreen, save) and reports
+  unimplemented actions honestly in a toast.
+
+**INFERRED/UNKNOWN:** the original dialog's exact pixel layout; actions whose handlers were
+not traced are listed as "not implemented" rather than guessed.
+
+## 4. Timeline (CONFIRMED structure, own widget layout)
+
+RTTI classes confirm the model: `cTimelineLayer`, `cTimelineLayers`,
+`cTimelineLayerTimeline`, `cTimelineLayerOptions`, `cTimelineStrip`, `cTimelineAudio`,
+`cTimelineAudioMultiTrack`, `cTimelineAudioTrack` (`Master` / `Simple` / `Plane`),
+`cTimelineNotes`. Settings keys: `TimelineUncompactedAtOpen`, `CenterTimeline`,
+`LayerPanel-TimelineNotesHeight`, `LayerPanel-TimelineAudioHeight`.
+
+**Implemented:** `src/timeline.js` (layers, exposure strips, camera-key row, audio master
+track, notes row, playhead) and the app timeline with scrub, step, key jump, play at
+12/24/25/30 fps, exposure editing and camera key markers.
+**INFERRED:** widget pixel metrics are our own; only the captured colours are exact.
+
+## 5. Canvas & UI shell
+
+- The canvas is a white paper (composited layers) on the traced desktop colour, with the
+  traced dark chrome; the earlier "black canvas" was a demo rendering defect (dark fill with
+  no paper), now fixed.
+- UI colours are cited per CSS variable in `demo/styles.css` from the `Night` scheme:
+  `mdesktopbackground 49 49 54`, `mdocumentbackground 45 45 50`, `mgadgetborder 43 43 48`,
+  `mgadgettextinside/outside 182 182 182`, `mgadgettextbackground 70 70 77`,
+  `mgadgettoolbarbutton 92 92 92`, `mgadgettoolbarbuttonselected 115 115 115`,
+  `mgadgetdialogselected 62 71 107`, `mgadgetelementcurrent 60 60 67`,
+  `mlayerhandlecolor1 90 90 97`, `mlayerhandlecolor2 110 110 117`,
+  `mlayerhandlegrabbed 90 102 204`, `mnotesbackground 80 80 87`,
+  `mhighlightedkeys 255 255 0`, `mnotificationbackground 137 143 166`,
+  `mnotificationtext 10 10 10`.
+- **Implemented:** single app shell (menu bar, options bar, tool rail, viewport, right panels,
+  timeline, status bar), draw view + camera view, pressure canvas, layers, project save.
+
+**UNKNOWN/not attempted:** original `.dip` icon artwork (we draw our own SVG icons), exact
+widget pixel layout, brush engine internals, multi-plane camera, motion blur, audio playback.
+
+## Verification performed
+
+- `npm test` — 32/32 pass (camera v2, shortcuts parser/format/conflicts, timeline model,
+  pressure→width).
+- Browser probe on the shipped app: 283 keymap bindings loaded; pen stroke added and
+  undone/redone via `Ctrl Z` / `Shift U`; `E`/`B` switch tools; `Right`/`Page Down`
+  navigate; `F6` toggles the palette; `Ctrl K` opens/closes the shortcut dialog; camera
+  actions produce keys/path points; `infoFrame` prints the exact 6-float order
+  (e.g. `480 270 0 100 1920 1080`); zero console errors.
+- Visual check: draw view (white paper, seeded art, pressure stroke), camera view (clipped
+  letterboxed output, corner labels, path polyline, HUD), shortcut dialog.
+

@@ -41,3 +41,14 @@ User: bring Camera to EXACT parity, add: (1) canvas, (2) pen pressure, (3) short
 
 ## Step 7b
 - Same private repo, new commits pushed.
+
+## Step 6c/7c BUILD — UI shell (user feedback #3: "canvas is black, UI is shit")
+- Fixed the black canvas: the draw view now renders a white paper with composited layers (the old demo filled dark only).
+- Rebuilt the demo as a single TVPaint-style app shell instead of tabs: menu bar, options bar, left tool rail, viewport, right panels (Color / Camera / Layers), bottom timeline, status bar.
+- UI theme is evidence-based: all colours read from TVPaint's own config.ini "Night" scheme (mdesktopbackground 49 49 54, mdocumentbackground 45 45 50, mgadgetborder 43 43 48, mgadgettextinside 182 182 182, mgadgettextbackground 70 70 77, mgadgettoolbarbutton 92 92 92, selected 62 71 107, layer handles 90 90 97 / 110 110 117 / 90 102 204, notes 80 80 87, playhead 255 255 0, notifications 137 143 166 / 10 10 10). Cited per CSS variable in demo/styles.css.
+- Camera view now renders the real camera output: output rect clipped + letterboxed, TL/TR/BR/BL labels, path polyline, HUD with the exact 6-float infoFrame order; draw view shows the camera frame overlay aligned to the paper.
+- Fixed a real bug found in browser testing: camera path points were absolute near origin instead of centred on the paper (camera pointed off-canvas); ranges now stay around the paper centre.
+- Live shortcut dispatcher wired to real actions (undo/redo, tools, layers, frame/key nav, panel toggles, size, zoom, fullscreen, save); Configure Keyboard dialog with search/rebind/reset/export in the exact captured format.
+- Verified in browser: pen stroke draw + Ctrl Z undo + Shift U redo, E/B tool switching, Right/Page Down navigation, F6 panel toggle, Ctrl K dialog, camera keys/path, infoFrame order, zero console errors. 32/32 tests pass.
+- Docs: README rewritten for the app; report addendum (camera v2 + canvas + pressure + shortcuts + timeline + UI theme); evidence/features-bundle.json distilled ledger. tools/serve.js added (dev-only static server with correct MIME types).
+

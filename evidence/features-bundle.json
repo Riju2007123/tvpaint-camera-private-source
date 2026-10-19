@@ -1,0 +1,157 @@
+{
+  "note": "Distilled, human-readable evidence ledger for request #2 (camera v2, canvas, pen pressure, shortcuts, timeline, UI theme). Addresses and strings were read during the REA/Ghidra session on the target below; the raw provider export is evidence/tvpaint-camera-bundle.json. Status values: CONFIRMED = read directly from the binary or captured from the installed app; INFERRED = reasoned from confirmed evidence; UNKNOWN = not recovered.",
+  "target": {
+    "name": "TVPaint Animation 12 Pro Demo.exe",
+    "sha256": "c998c6fe9d14e0a4d23726f2b667f1406f72631de2ab20aa52c34a3c97432c2a",
+    "format": "PE",
+    "architecture": "x86_64"
+  },
+  "provider": {
+    "rea": "rea-agents",
+    "decompiler": "Ghidra 12.1.4"
+  },
+  "cameraV2": [
+    {
+      "id": "camv2-prev-next",
+      "status": "CONFIRMED",
+      "claim": "Camera interpolation searches the previous and next key that actually carries the requested property (sparse keyspans); the two lookup routines are FUN_1401e3870 (previous) and FUN_1401e3690 (next). Each property checks its own flag bit.",
+      "evidence": ["FUN_1401e3870", "FUN_1401e3690"]
+    },
+    {
+      "id": "camv2-layout",
+      "status": "CONFIRMED",
+      "claim": "Camera key array stride is 0x380 bytes; key entry stride 0xE0: frame +0x00, rotation +0x18 (double), zoom +0x20 (double), sizeX +0x28 (double), sizeY +0x30 (double), flags +0x48 (bit1 rotation, bit2 zoom, bit3 size), per-property ease curves +0x178 (zoom), +0x238 (rotation), +0x2F8 (position). Therefore key x/y are the camera frame SIZE, not a pan offset.",
+      "evidence": ["decompiled FUN_1401e33c0", "decompiled FUN_1401e5020", "decompiled FUN_1401e4a80", "offsets read in REA"]
+    },
+    {
+      "id": "camv2-corners",
+      "status": "CONFIRMED",
+      "claim": "FUN_1401da730 builds the camera rectangle from evaluated size, zoom and rotation, returns corners in TL, TR, BR, BL order, and uses the path point as centre when one exists; otherwise falls back to the scene/camera centre.",
+      "evidence": ["FUN_1401da730"]
+    },
+    {
+      "id": "camv2-curve-raster",
+      "status": "CONFIRMED",
+      "claim": "FUN_14081ec20 rasterises the ease curve into 1001 uint16 samples; sampling is x-mirrored at table build time. The linear default therefore still behaves as a standard ease.",
+      "evidence": ["FUN_14081ec20", "FUN_14081fd40"]
+    },
+    {
+      "id": "camv2-blend",
+      "status": "CONFIRMED",
+      "claim": "Blend between keys A and B is c = clamp01(B.curve(1 - t)); value = A*(1-c) + B*c, i.e. the later key's curve is evaluated with 1-t, in all four evaluators (x, y, zoom, rotation).",
+      "evidence": ["FUN_1401e33c0", "FUN_1401e5020", "FUN_1401e4a80"]
+    },
+    {
+      "id": "camv2-infoframe-order",
+      "status": "CONFIRMED",
+      "claim": "tv_camerainfoframe prints six doubles in the order pathX, pathY, rotation, zoom*100, sizeX, sizeY. The argument setup and the six-float format string were read at 0x1403f143f..0x1403f1500.",
+      "evidence": ["0x1403f143f..0x1403f1500", "FUN_1403f1360", "FUN_1403f1050"]
+    },
+    {
+      "id": "camv2-path-interp",
+      "status": "INFERRED",
+      "claim": "Path points between keyed positions are interpolated linearly in our implementation; the original path evaluator FUN_1401e2690 (~17.9 KB) was not fully decoded.",
+      "evidence": ["FUN_1401e2690 (not fully decoded)"]
+    },
+    {
+      "id": "camv2-zoom-stage",
+      "status": "INFERRED",
+      "claim": "Zoom is applied at the same composition stage as the corner geometry (scale before rotation/translation). The exact compositor matrix application point is not confirmed.",
+      "evidence": ["geometry of FUN_1401da730", "FUN_1403f1970 path settings"]
+    }
+  ],
+  "penPressure": [
+    {
+      "id": "pressure-strings",
+      "status": "CONFIRMED",
+      "claim": "The string 'pressure' exists at 0x140a3d1a8 and the literal \"\\thas pressure ? %s\\n\" at 0x140a70f30, used in FUN_14053f9e0.",
+      "evidence": ["0x140a3d1a8", "0x140a70f30", "FUN_14053f9e0"]
+    },
+    {
+      "id": "pressure-tablet-reader",
+      "status": "CONFIRMED",
+      "claim": "RTTI class .?AUcMyTabletReader@nInk@@ at 0x140cdb4e8 places the tablet/pressure reader in the ink module; globals 0x140ce0d88 and 0x140ce0d94 hold pressure state; a _pressure.mot resource exists.",
+      "evidence": ["0x140cdb4e8", "0x140ce0d88", "0x140ce0d94", "_pressure.mot"]
+    },
+    {
+      "id": "pressure-application",
+      "status": "INFERRED",
+      "claim": "Our brush maps pen pressure to width through the same style of curve object (width = size * curve(pressure), mouse = full width). The original per-brush dab spacing / texel compositing is proprietary and not reproduced.",
+      "evidence": ["implementation in src/pressureInk.js", "string/rtti evidence above"]
+    }
+  ],
+  "shortcuts": [
+    {
+      "id": "keymap-capture",
+      "status": "CONFIRMED",
+      "claim": "The active keymap file is %APPDATA%\\TVPaint Animation 12 Pro Demo\\default\\keymaps\\Fauxtoshop.cfg: 293 lines, [Keyboard] section, Combo=Action lines, literal 'none' bindings. This exact file is shipped as data and used by the app.",
+      "evidence": ["captured Fauxtoshop.cfg (293 lines)", "build/my-version/keymaps/Fauxtoshop.cfg"]
+    },
+    {
+      "id": "keymap-command",
+      "status": "CONFIRMED",
+      "claim": "The 'Export Shortcuts' command string is at 0x140a6ab78; action id 11700020Cycle_keyboardshortcut exists in the command inventory.",
+      "evidence": ["0x140a6ab78", "11700020Cycle_keyboardshortcut"]
+    },
+    {
+      "id": "shortcut-colors",
+      "status": "CONFIRMED",
+      "claim": "Configure-keyboard colours in the Night scheme: mmenushortcut 112 121 157; mshortcutkeyfoundresult 129 170 201; mshortcutkeyinuse 240 208 146; mshortcutkeynormaltext 182 182 182; mshortcutkeyselected 62 71 107.",
+      "evidence": ["config.ini color block (mname=Night)"]
+    },
+    {
+      "id": "shortcut-dialog-layout",
+      "status": "UNKNOWN",
+      "claim": "The exact pixel layout/widget sizing of the original Configure Keyboard dialog was not recovered; our dialog reuses the captured colours and file format.",
+      "evidence": []
+    }
+  ],
+  "timeline": [
+    {
+      "id": "timeline-rtti",
+      "status": "CONFIRMED",
+      "claim": "Timeline model classes present in RTTI: cTimelineLayer, cTimelineLayers, cTimelineLayerTimeline, cTimelineLayerOptions, cTimelineStrip, cTimelineAudio, cTimelineAudioMultiTrack, cTimelineAudioTrack, cTimelineNotes. cTimelineAudioTrack has variants Master/Simple/Plane.",
+      "evidence": ["RTTI inventory strings"]
+    },
+    {
+      "id": "timeline-settings",
+      "status": "CONFIRMED",
+      "claim": "Timeline-related settings keys: TimelineUncompactedAtOpen, CenterTimeline, LayerPanel-TimelineNotesHeight, LayerPanel-TimelineAudioHeight.",
+      "evidence": ["config.ini settings keys"]
+    },
+    {
+      "id": "timeline-widget-layout",
+      "status": "INFERRED",
+      "claim": "Widget pixel metrics are our own; the data model (per-layer exposure strips, camera-key row, audio master track, notes row, yellow playhead) follows the confirmed class responsibilities.",
+      "evidence": ["src/timeline.js", "src/timeline model tests"]
+    }
+  ],
+  "uiTheme": [
+    {
+      "id": "night-scheme",
+      "status": "CONFIRMED",
+      "claim": "The active colour scheme is named Night and every app colour below is read from config.ini: mdesktopbackground 49 49 54; mdocumentbackground 45 45 50; mgadgetborder 43 43 48; mgadgettextinside/outside 182 182 182; mgadgettextbackground 70 70 77; mgadgettoolbarbutton 92 92 92; mgadgettoolbarbuttonselected 115 115 115; mgadgetdialogselected 62 71 107; mgadgetelementcurrent 60 60 67; mlayerhandlecolor1 90 90 97; mlayerhandlecolor2 110 110 117; mlayerhandlegrabbed 90 102 204; mnotesbackground 80 80 87; mhighlightedkeys 255 255 0; mnotificationbackground 137 143 166; mnotificationtext 10 10 10.",
+      "evidence": ["config.ini [color scheme block] mname=Night", "demo/styles.css per-variable citations"]
+    },
+    {
+      "id": "icons",
+      "status": "UNKNOWN",
+      "claim": "The original tool icons are stored in a proprietary .dip image format; we draw our own SVG icons rather than copying artwork.",
+      "evidence": ["default profile icon files (.dip)"]
+    }
+  ],
+  "verification": [
+    {
+      "id": "tests",
+      "status": "CONFIRMED",
+      "claim": "npm test runs 32 Node tests covering camera v2, shortcuts parsing/serialisation/conflicts, timeline model and pressure-to-width; all pass.",
+      "evidence": ["build/my-version/tests/*.test.js"]
+    },
+    {
+      "id": "browser-check",
+      "status": "CONFIRMED",
+      "claim": "In the shipped demo, 283 keymap bindings load; a pen stroke can be drawn and undone/redone via Ctrl Z / Shift U; E/B switch tools; Right and Page Down navigate frames; F6 toggles the palette; Ctrl K opens the dialog; camera actions add keys/path points; infoFrame reports the confirmed 6-float order; no console errors.",
+      "evidence": ["browser probe output", "screenshots: draw view, camera view, shortcuts dialog"]
+    }
+  ]
+}

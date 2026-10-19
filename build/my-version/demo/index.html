@@ -1,35 +1,212 @@
 <!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>my-version — keyframed camera (from REA-traced SPEC)</title>
+<html><head><meta charset="utf-8"><title>my-version — TVPaint-style animation app</title>
 <meta name="color-scheme" content="dark">
-<style>
-  body{font-family:system-ui,Segoe UI,sans-serif;background:#111;color:#ddd;margin:0;padding:12px}
-  #stage{display:block;background:#000;border:1px solid #333;border-radius:6px}
-  button{margin:2px 4px 8px 0;padding:4px 10px;border-radius:4px;border:1px solid #555;background:#222;color:#ddd;cursor:pointer}
-  button:hover{background:#333}
-  #info{font-family:Consolas,monospace;color:#8f8;font-size:13px;min-height:18px}
-  .row{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
-</style></head>
-<body>
-<h3 style="margin:4px 0">my-version camera (keyframed, SPEC.md · no copied code)</h3>
-<div class="row">
-  <div><canvas id="stage" width="960" height="540"></canvas>
-  <div><input id="time" type="range" min="0" max="1" step="0.01" value="0" style="width:920px">
-  <div>
-    <button id="bp">+ Position key</button><button id="br">+ Rotation key</button><button id="bz">+ Zoom key</button>
-    <button id="bl">Set zoom on ALL frames (0.5…)</button><button id="bd">Delete at frame</button>
-    <label>follow <input id="follow" type="checkbox" checked></label>
-    <label>show camera frame <input id="showcam" type="checkbox" checked></label>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<div id="app">
+
+  <!-- ============ MENU BAR ============ -->
+  <div id="menubar">
+    <div class="menu"><button data-menu="file">File</button>
+      <div class="dropdown">
+        <button data-cmd="new">New scene…</button>
+        <button data-cmd="save">Save project (JSON)</button>
+        <button data-cmd="exportkm">Export Shortcuts… <span class="sc">Ctrl K → Export</span></button>
+      </div></div>
+    <div class="menu"><button data-menu="edit">Edit</button>
+      <div class="dropdown">
+        <button data-cmd="undo">Undo <span class="sc">Ctrl Z</span></button>
+        <button data-cmd="redo">Redo <span class="sc">Shift U</span></button>
+        <hr><button data-cmd="clear">Clear layer <span class="sc">Backspace</span></button>
+      </div></div>
+    <div class="menu"><button data-menu="layer">Layer</button>
+      <div class="dropdown">
+        <button data-cmd="layeradd">New layer</button>
+        <button data-cmd="layerdel">Delete layer</button>
+        <button data-cmd="layervis">Toggle visibility</button>
+        <hr><button data-cmd="layerup">Layer up <span class="sc">Up</span></button>
+        <button data-cmd="layerdown">Layer down <span class="sc">Down</span></button>
+      </div></div>
+    <div class="menu"><button data-menu="anim">Animation</button>
+      <div class="dropdown">
+        <button data-cmd="play">Play / Stop <span class="sc">Enter?</span></button>
+        <button data-cmd="prevframe">Previous frame <span class="sc">Left</span></button>
+        <button data-cmd="nextframe">Next frame <span class="sc">Right</span></button>
+        <button data-cmd="prevkey">Previous key <span class="sc">Page Up</span></button>
+        <button data-cmd="nextkey">Next key <span class="sc">Page Down</span></button>
+        <hr><button data-cmd="addexp">Add exposure here</button>
+      </div></div>
+    <div class="menu"><button data-menu="view">View</button>
+      <div class="dropdown">
+        <button data-cmd="mode-draw">Draw view</button>
+        <button data-cmd="mode-cam">Camera view <span class="sc">C?</span></button>
+        <button data-cmd="zoomfit">Fit <span class="sc">5</span></button>
+        <button data-cmd="zoom100">Zoom 1:1 <span class="sc">Ctrl Pad 0</span></button>
+      </div></div>
+    <div class="menu"><button data-menu="win">Windows</button>
+      <div class="dropdown">
+        <button data-cmd="kms">Shortcuts / Configure keyboard… <span class="sc">Ctrl K</span></button>
+        <button data-cmd="togglepalette">Palette panel <span class="sc">F6</span></button>
+        <button data-cmd="togglelayers">Layer panel <span class="sc">F7</span></button>
+        <button data-cmd="toggletools">Tool panel <span class="sc">F8</span></button>
+      </div></div>
+    <div class="menu"><button data-menu="help">Help</button>
+      <div class="dropdown"><button data-cmd="about">About this build</button></div></div>
+    <div id="title">untitled — TVPaint 12 RE-traced my-version</div>
   </div>
-  <div id="info"></div></div>
-  <div style="max-width:340px;font-size:13px;color:#999">
-    <b>How to play:</b> move timeline → drag on canvas adds the selected-property key? (keys below instead).
-    Click a <i>+</i> button to write a key at the current frame with the camera's current position/rotation/zoom,
-    then scrub — values ease between keys with the 1001-sample curve, exactly as traced in the binary
-    (sparse per-property keyspan, exact-frame key wins, layer range errors, defaults 1/0°/camera-size).
+
+  <!-- ============ OPTIONS BAR ============ -->
+  <div id="options">
+    <span id="toolname">Brush</span>
+    <span class="sep"></span>
+    <span id="swatch" title="current color"></span>
+    <span class="sep"></span>
+    <label style="color:#9a9aa2">Size</label>
+    <input id="size" type="range" min="1" max="120" value="18" style="width:110px">
+    <span id="sizev" class="val" style="width:28px;text-align:right;font-family:Consolas,monospace">18</span>
+    <label style="color:#9a9aa2;margin-left:6px">Smooth</label>
+    <input id="smooth" type="range" min="0" max="90" value="35" style="width:80px">
+    <span class="sep"></span>
+    <button id="btnpress" class="on" title="Pen pressure → brush width">Pressure</button>
+    <span id="press"><i></i></span>
+    <span id="pressv" style="font-family:Consolas,monospace;color:#8f8;font-size:11px;white-space:nowrap">pen: —</span>
+    <span class="sep"></span>
+    <button class="modebtn on" data-mode="draw">Draw</button>
+    <button class="modebtn" data-mode="cam">Camera</button>
+    <span style="flex:1"></span>
+    <button id="zoomin" title="Zoom in (>)">Zoom +</button>
+    <button id="zoomout" title="Zoom out (<)">Zoom −</button>
+    <button id="fit">Fit</button>
+  </div>
+
+  <!-- ============ MAIN ============ -->
+  <div id="main">
+    <div id="tools">
+      <button data-tool="brush" class="on" title="Brush (B = ShapeFreeHandLine)">
+        <svg viewBox="0 0 24 24"><path d="M4 20c5-1 8-4 12-8l4-4-4-4-4 4c-4 4-7 7-8 12z"/><path d="M13 5l6 6"/></svg></button>
+      <button data-tool="eraser" title="Eraser (E)">
+        <svg viewBox="0 0 24 24"><path d="M4 16l8-8 6 6-6 6H8z"/><path d="M8 20h12"/></svg></button>
+      <button data-tool="picker" title="Color picker (I)">
+        <svg viewBox="0 0 24 24"><path d="M4 20l2-6 9-9 4 4-9 9z"/><path d="M14 6l4 4"/></svg></button>
+      <div class="div"></div>
+      <button data-tool="pan" title="Pan (V)">
+        <svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/><path d="M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/></svg></button>
+      <button data-tool="zoom" title="Zoom area (Space)">
+        <svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="M15 15l6 6M8 10h4M10 8v4"/></svg></button>
+      <div class="div"></div>
+      <button data-cmd="undo" title="Undo (Ctrl Z)">
+        <svg viewBox="0 0 24 24"><path d="M8 7L4 11l4 4"/><path d="M4 11h10a6 6 0 0 1 0 12H9"/></svg></button>
+      <button data-cmd="redo" title="Redo (Shift U)">
+        <svg viewBox="0 0 24 24"><path d="M16 7l4 4-4 4"/><path d="M20 11H10a6 6 0 0 0 0 12h5"/></svg></button>
+    </div>
+
+    <div id="viewport">
+      <canvas id="view"></canvas>
+      <div id="camhud"></div>
+    </div>
+
+    <div id="right">
+      <div class="panel" id="panelPalette">
+        <div class="ph"><span>Color</span><span class="x" data-fold="pal">−</span></div>
+        <div class="pb" id="palbody">
+          <div id="pal"></div>
+          <div class="row" style="margin-top:6px"><label>Opacity</label>
+            <input id="opacity" type="range" min="5" max="100" value="100"><span class="val" id="opacityv">100</span></div>
+        </div>
+      </div>
+
+      <div class="panel" id="panelCamera">
+        <div class="ph"><span>Camera</span><span class="x" data-fold="cam">−</span></div>
+        <div class="pb" id="cambody">
+          <div class="row">
+            <button data-cmd="camsize">+ Size key</button>
+            <button data-cmd="camrot">+ Rot key</button>
+          </div>
+          <div class="row">
+            <button data-cmd="camzoom">+ Zoom key</button>
+            <button data-cmd="campath">+ Path point</button>
+          </div>
+          <div class="row">
+            <button data-cmd="camdel">Delete keys</button>
+            <button data-cmd="mode-cam" class="modebtn">Preview</button>
+          </div>
+          <div id="caminfo">—</div>
+        </div>
+      </div>
+
+      <div class="panel" id="panelLayers">
+        <div class="ph"><span>Layers</span><span class="x" data-fold="layers">−</span></div>
+        <div class="pb" id="layersbody">
+          <div id="layerlist"></div>
+          <div class="row">
+            <button data-cmd="layeradd">+</button>
+            <button data-cmd="layerdel">−</button>
+            <button data-cmd="layervis">👁</button>
+            <button data-cmd="layerexp">Exposure</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TIMELINE ============ -->
+  <div id="timeline">
+    <div id="tlbar">
+      <button data-cmd="firstframe" title="First frame (Home)">⏮</button>
+      <button data-cmd="prevkey" title="Previous key (Page Up)">◀|</button>
+      <button data-cmd="prevframe" title="Previous frame (Left)">◀</button>
+      <button data-cmd="play" id="playbtn" title="Play / Stop">▶</button>
+      <button data-cmd="nextframe" title="Next frame (Right)">▶</button>
+      <button data-cmd="nextkey" title="Next key (Page Down)">|▶</button>
+      <button data-cmd="lastframe" title="Last frame (End)">⏭</button>
+      <span id="fnum">1</span>
+      <span class="sep" style="width:1px;height:18px;background:var(--border)"></span>
+      <label style="color:#9a9aa2">fps</label>
+      <select id="fps"><option>12</option><option selected>24</option><option>25</option><option>30</option></select>
+      <button data-cmd="addexp">+ Exposure</button>
+      <span class="sp"></span>
+      <span id="tlinfo" style="color:#8c8c94">—</span>
+    </div>
+    <div id="tlbody">
+      <div id="tllabels"></div>
+      <div id="tlscroll"><div id="tlcanvas"><div id="ruler"></div><div id="tlrows"></div><div id="ph"></div></div></div>
+    </div>
+  </div>
+
+  <div id="status">
+    <span>Tool: <b id="stool">Brush</b></span>
+    <span>Layer: <b id="slayer">Background</b></span>
+    <span>Frame: <b id="sframe">1</b> / <b id="send">60</b></span>
+    <span>Camera: <b id="scam">off</b></span>
+    <span id="shint" style="color:#a8a8b0">Pen pressure drives brush width · Ctrl K opens shortcut settings</span>
   </div>
 </div>
+
+<!-- ============ SHORTCUTS MODAL ============ -->
+<div id="modalback">
+  <div id="kms">
+    <div class="h"><span>Configure keyboard — exact TVPaint keymap format ([Keyboard] section)</span><span class="x" id="kmsclose">✕</span></div>
+    <div class="bar">
+      <input id="kmsearch" type="search" placeholder="Search combo or action…">
+      <button id="kmreset">Reset to captured default</button>
+      <button id="kmexport">Export Shortcuts…</button>
+    </div>
+    <div id="kmlist"></div>
+    <div class="foot">
+      <span id="kmmsg">Click a binding, then press a key combo to rebind it.</span>
+      <span class="sp"></span>
+      <span id="kmcount"></span>
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+
 <script src="../src/curve.js"></script>
 <script src="../src/cameraTrack.js"></script>
 <script src="../src/index.js"></script>
-<script src="demo.js"></script>
+<script src="../src/shortcuts.js"></script>
+<script src="../src/defaultKeymap.js"></script>
+<script src="../src/timeline.js"></script>
+<script src="../src/pressureInk.js"></script>
+<script src="app.js"></script>
 </body></html>
